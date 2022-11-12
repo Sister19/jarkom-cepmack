@@ -69,30 +69,44 @@ class Segment:
 
     # -- Setter --
     def set_header(self, header : dict):
-        pass
+        self.sequence = header['sequence']
+        self.ack = header['ack']
 
     def set_payload(self, payload : bytes):
-        pass
+        self.payload = payload
 
     def set_flag(self, flag_list : list):
-        pass
+        temp_flag = SegmentFlag(0b00000000)
+        for flag in flag_list:
+            if(flag & SYN_FLAG):
+                temp_flag.toggle_syn()
+            if(flag & ACK_FLAG):
+                temp_flag.toggle_ack()
+            if(flag & FIN_FLAG):
+                temp_flag.toggle_fin()
+        self.flag = temp_flag
 
 
     # -- Getter --
     def get_flag(self) -> SegmentFlag:
-        pass
+        return self.flag
 
     def get_header(self) -> dict:
-        pass
+        return {"sequence": self.sequence, "ack": self.ack}
 
     def get_payload(self) -> bytes:
-        pass
+        return self.payload
 
 
     # -- Marshalling --
     def set_from_bytes(self, src : bytes):
         # From pure bytes, unpack() and set into python variable
-        pass
+        self.sequence = struct.unpack("!I", src[0:4])[0]
+        self.ack = struct.unpack("!I", src[4:8])[0]
+        self.flag = SegmentFlag(src[8])
+        self.checksum = struct.unpack("!H", src[10:12])[0]
+        self.payload = src[12:]
+        
 
     def get_bytes(self) -> bytes:
         # Convert this object to pure bytes
