@@ -6,7 +6,6 @@ import lib.segment
 import os, sys
 import random
 import signal
-import math
 
 class Server:
     def __init__(self):
@@ -37,8 +36,6 @@ class Server:
 
     def listen_for_clients(self):
         # Waiting client for connect
-
-        # START OF NYOBAIN DOANG (UPDATE THIS IF YOU ARE GOING TO USE THIS)
         self.client_list = []
         while True:
             resp = self.connection.listen_single_segment()
@@ -46,22 +43,29 @@ class Server:
             addr = resp[1]
             if segment is None:
                 # Timeout
+                print("Timeout")
                 continue
             if segment.get_flag().syn and segment.valid_checksum():
                 if addr not in self.client_list:
                     self.client_list.append(addr)
-                    print(segment)
                     print(f"Client {addr} connected")
+                else:
+                    print(f"Client {addr} already connected")
                 prompt = input("[?] Listen more? (y/n) ")
                 if prompt != "y":
                     break
 
-        # END OF NYOBAIN DOANG (UPDATE THIS IF YOU ARE GOING TO USE THIS)
         
 
     def start_file_transfer(self):
         # Handshake & file transfer for all client
-        pass
+        self.connected_client = []
+        for(client_ip, client_port) in self.client_list:
+            if self.three_way_handshake((client_ip, client_port)):
+                self.connected_client.append((client_ip, client_port))
+
+        for(client_ip, client_port) in self.connected_client:
+            self.file_transfer((client_ip, client_port))
 
     def file_transfer(self, client_addr : tuple[str, int]):
         # File transfer, server-side, Send file to 1 client
@@ -74,10 +78,29 @@ class Server:
         while seq_base < self.segment_count:
             data_segment = Segment()
             self.file.seek(lib.config.SEGMENT_SIZE - 12)
+            seq_base+=1
 
         # Begin 2 way handshake to terminate connection
+        fin_segment = Segment()
+        fin_segment.set_flag([lib.segment.FIN_FLAG])
+        self.connection.send_data(fin_segment, client_addr)
 
         # Waiting ACK response
+        ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
+        if(ack_segment is None):
+            print("Timeout")
+        else:
+            ack_flag = ack_segment.ack
+            if ack_flag and (ack_ip, ack_port) == client_addr:
+                fin_ack_segment = Segment()
+                fin_ack_segment.set_flag([lib.segment.ACK_FLAG, lib.segment.FIN_FLAG])
+                self.connection.send_data(fin_ack_segment, client_addr)
+                print(f"Client {client_addr} terminated")
+            else:
+                print(f"Client {client_addr} bukan ack dari client yang bersangkutan") # ganti verbosenya jika diperlukan
+        
+
+        
 
     def _three_way_error(self):
         raise Exception()
@@ -92,20 +115,15 @@ class Server:
             # Asumsikan SYN sudah diterima
 
             # Sequence 2: Kirimkan SYN + ACK ke client
-            random_number = random.randint(0, 30000)
-            while(random_number != req_seqnumber):
-                random_number = random.randint(0, 30000)
-
             res_segment = Segment()
             res_segment.set_flag([lib.segment.SYN_FLAG, lib.segment.ACK_FLAG])
-            res_segment.set_header({"sequence": random_number, "ack": req_seqnumber + 1})
             
-            self.connection.send_data(res_segment, (client_addr, req_port))
+            self.connection.send_data(res_segment, client_addr)
 
             # Sequence 3: Tunggu ACK dari client
             ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
             ack_flag = ack_segment.ack
-            if ack_flag and ack_ip == client_addr:
+            if ack_flag and (ack_ip, ack_port) == client_addr:
                 print(f"Client {client_addr} connected")
                 return True
             else:
@@ -125,5 +143,5 @@ if __name__ == '__main__':
     main = Server()
     main.motd()
     main.listen_for_clients()
-    main.three_way_handshake(("127.0.0.1", 4500))
-    # main.start_file_transfer()
+    # main.three_way_handshake(("127.0.0.1", 4500))
+    main.start_file_transfer()

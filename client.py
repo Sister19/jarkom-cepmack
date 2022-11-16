@@ -7,7 +7,7 @@ import os, sys
 import signal
 
 # ini broadcast address kalau di windows, kalau di linux keknya bisa broadcast = "" aja;
-BROADCAST_ADDRESS = "255.255.255.255"
+BROADCAST_ADDRESS = "<broadcast>"
 
 class Client:
     def __init__(self):
