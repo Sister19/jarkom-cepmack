@@ -84,16 +84,17 @@ class Server:
             while(random_number != req_seqnumber):
                 random_number = random.randint(0, 30000)
 
-            res_server = Segment()
-            res_server.set_flag([lib.segment.SYN_FLAG, lib.segment.ACK_FLAG])
-            res_server.set_header({"sequence": random_number, "ack": req_seqnumber + 1})
+            res_segment = Segment()
+            res_segment.set_flag([lib.segment.SYN_FLAG, lib.segment.ACK_FLAG])
+            res_segment.set_header({"sequence": random_number, "ack": req_seqnumber + 1})
+            
             if (req_segment.valid_checksum() and req_addr == client_addr):
-                self.connection.send_data(res_server, (client_addr, req_port))
+                self.connection.send_data(res_segment, (client_addr, req_port))
 
             # Sequence 3: Tunggu ACK dari client
             ack_segment, (ack_addr, ack_port) = self.connection.listen_single_segment()
             ack_flag = ack_segment.ack
-            if ack_flag == lib.segment.ACK_FLAG and ack_addr == client_addr:
+            if ack_flag and ack_addr == client_addr:
                 print(f"Client {client_addr} connected")
                 return True
             else:
