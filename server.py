@@ -68,23 +68,14 @@ class Server:
         window_size = lib.config.WINDOW_SIZE
         seq_base = 0
         seq_max = window_size + 1
-        segment_count = math.ceil(self.filesize / 32768)
         seq_window_bound = min(seq_base + window_size, segment_count) - seq_base
         
         # Open file to transfer
-        with open(self.path, "rb") as f:
-            
-            # File transfer
-            while seq_base < segment_count:
+        while seq_base < self.segment_count:
 
-                # Send segments within window
-                for i in range(seq_window_bound):
-                    data_segment = Segment()
-                    # TODO: Complete this (Andika)
+        # Begin 2 way handshake to terminate connection
 
-            # Begin 2 way handshake to terminate connection
-
-            # Waiting ACK response
+        # Waiting ACK response
 
     def _three_way_error(self):
         raise Exception()
