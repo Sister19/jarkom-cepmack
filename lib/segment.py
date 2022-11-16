@@ -48,23 +48,25 @@ class Segment:
         output += f"{'Sequence number':24} | {self.sequence}\n"
         output += f"{'Acknowledgement number':24} | {self.ack}\n"
         output += f"{'Flags':24} | [SYN: {self.flag.syn}] [ACK: {self.flag.ack}] [FIN: {self.flag.fin}]\n"
-        output += f"{'Checksum':24} | {self.checksum} [IS VALID: {self.valid_checksum()}]\n"
+        # output += f"{'Checksum':24} | {self.checksum} [IS VALID: {self.valid_checksum()}]\n"
+        output += f"{'Checksum':24} | {self.checksum}\n"
         output += f"{'Data length':24} | {len(self.payload)}\n"
         return output
 
     def __calculate_checksum(self) -> int:
         # Calculate checksum here, return checksum result
-        data = self.get_bytes_without_checksum()
+        checksum = 0x0000
+        data = self.get_bytes_for_checksum()
+    
         for i in range(0, len(data), 2):
             data_chunk = data[i:i+2]
             if(len(data_chunk) == 1):
                 data_chunk += b'\x00'
-            self.checksum += struct.unpack("!H", data_chunk)[0]
+            checksum += struct.unpack("!H", data_chunk)[0]
 
     
-        self.checksum = ~self.checksum & 0xFFFF
-        return self.checksum
-        
+        checksum = ~checksum & 0xFFFF
+        return checksum
 
 
     # -- Setter --
@@ -115,18 +117,19 @@ class Segment:
         res += struct.pack("!I", self.ack)
         res += self.flag.get_flag_bytes()
         res += struct.pack("x")
-        res += struct.pack("!H", self.__calculate_checksum())
+        self.checksum = self.__calculate_checksum()
+        res += struct.pack("!H", self.checksum)
         res += self.payload
         return res
 
-    def get_bytes_without_checksum(self) -> bytes:
+    def get_bytes_for_checksum(self) -> bytes:
         # Get bytes without checksum
         res = b''
         res += struct.pack("!I", self.sequence)
         res += struct.pack("!I", self.ack)
         res += self.flag.get_flag_bytes()
         res += struct.pack("x") 
-        res += struct.pack("!H", 0x0000)
+        res += struct.pack("!H", self.checksum)
         res += self.payload
         return res
 
@@ -135,4 +138,28 @@ class Segment:
     # -- Checksum --
     def valid_checksum(self) -> bool:
         # Use __calculate_checksum() and check integrity of this object
+        # print(self.__calculate_checksum())
         return self.__calculate_checksum() == 0x0000
+
+
+# s = Segment()
+# s.set_flag([SYN_FLAG, ACK_FLAG])
+# print(s)
+# b = s.get_bytes_without_checksum()
+# s.checksum = 60927
+# print(s.valid_checksum())
+# print(s)
+# print(len(b))
+# sequence = struct.unpack("!I", b[0:4])[0]
+# ack = struct.unpack("!I", b[4:8])[0]
+# flag = SegmentFlag(b[8])
+# checksum = struct.unpack("!H", b[10:12])[0]
+# payload = b[12:]
+# print(sequence)
+# print(ack)
+# print(flag.syn)
+# print(flag.ack)
+# print(flag.fin)
+# print(checksum)
+# print(payload)
+# print(s.set_from_bytes(b))

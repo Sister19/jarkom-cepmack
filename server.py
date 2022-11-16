@@ -77,6 +77,7 @@ class Server:
 
             # Sequence 1: Tunggu SYN dari client
             req_segment, (req_ip, req_port) = self.connection.listen_single_segment()
+            # print(req_segment)
             req_seqnumber = req_segment.get_header()['sequence']
 
             # Sequence 2: Kirimkan SYN + ACK ke client
