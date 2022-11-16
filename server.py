@@ -4,6 +4,8 @@ from lib.args import Args
 from lib.segment import Segment
 import lib.segment
 import os, sys
+import random
+import signal
 
 class Server:
     def __init__(self):
@@ -53,7 +55,7 @@ class Server:
                     break
 
         # END OF NYOBAIN DOANG (UPDATE THIS IF YOU ARE GOING TO USE THIS)
-
+        
 
     def start_file_transfer(self):
         # Handshake & file transfer for all client
@@ -61,14 +63,55 @@ class Server:
 
     def file_transfer(self, client_addr : tuple[str, int]):
         # File transfer, server-side, Send file to 1 client
+        # TODO: tambah three_way_handshake untuk tiap klien
         pass
 
-    def three_way_handshake(self, client_addr: tuple[str, int]) -> bool:
-       # Three way handshake, server-side, 1 client
-       pass
+    def _three_way_error(self):
+        raise Exception()
 
+    def three_way_handshake(self, client_addr: tuple[str, int]) -> bool:
+        # Three way handshake, server-side, 1 client
+        signal.signal(signal.SIGALRM, self._three_way_error)
+        try:
+            signal.alarm(5)
+
+            # Sequence 1: Tunggu SYN dari client
+            req_segment, (req_addr, req_port) = self.connection.listen_single_segment()
+            req_seqnumber = req_segment.get_header()['sequence']
+
+            # Sequence 2: Kirimkan SYN + ACK ke client
+            random_number = random.randint(0, 30000)
+            while(random_number != req_seqnumber):
+                random_number = random.randint(0, 30000)
+
+            res_server = Segment()
+            res_server.set_flag([lib.segment.SYN_FLAG, lib.segment.ACK_FLAG])
+            res_server.set_header({"sequence": random_number, "ack": req_seqnumber + 1})
+            if (req_segment.valid_checksum() and req_addr == client_addr):
+                self.connection.send_data(res_server, (client_addr, req_port))
+
+            # Sequence 3: Tunggu ACK dari client
+            ack_segment, (ack_addr, ack_port) = self.connection.listen_single_segment()
+            ack_flag = ack_segment.ack
+            if ack_flag == lib.segment.ACK_FLAG and ack_addr == client_addr:
+                print(f"Client {client_addr} connected")
+                return True
+            else:
+                print(f"Client {client_addr} disconnected")
+                return False
+            
+        except:
+            print("yah filenya ilang, seperti dia yang kamu sayang-sayang")
+
+    def motd(self):
+        print(f"[!] Server started at localhost:{self.port}")
+        print(f"[!] Source file | {os.path.basename(self.path).split('/')[-1]} | {os.path.getsize(self.path)} bytes")
+        print(f"[!] Listening to broadcast address for clients.")
+        print()
 
 if __name__ == '__main__':
     main = Server()
+    main.motd()
     main.listen_for_clients()
-    main.start_file_transfer()
+    main.three_way_handshake(("127.0.0.1", 4500))
+    # main.start_file_transfer()
