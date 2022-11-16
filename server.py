@@ -117,7 +117,7 @@ class Server:
             else:
                 self._verbose(message=f"Client {client_addr} bukan ack dari client yang bersangkutan") # ganti verbosenya jika diperlukan
 
-    def _verbose(self, type: string=None, address: tuple[str, int]=None, seq_number: int=None, ack_number: int=None, message: string=None):
+    def _verbose(self, type: str=None, address: tuple[str, int]=None, seq_number: int=None, ack_number: int=None, message: str=None):
         """
         types: None (tidak ada pesan spesifik), "handshake", "init", "transfer", "ack", "timeout", "close", "fin"
         message: Pesan yang ingin disampaikan
@@ -127,17 +127,17 @@ class Server:
         elif type == "init":
             print(f"[!] [{address[0]}:{address[1]}] Initiating file transfer...")
         elif type == "transfer":
-            print(f"[!] [{address[0]}:{address[1]}] [Num={seq_number if seq_number is not None else "NULL"}] Sending segment to client...")
+            print(f"[!] [{address[0]}:{address[1]}] [Num={seq_number if seq_number is not None else 'NULL'}] Sending segment to client...")
         elif type == "ack":
-            print(f"[!] [{address[0]}:{address[1]}] [Num={ack_number if ack_number is not None else "NULL"}] [ACK] {message}")
+            print(f"[!] [{address[0]}:{address[1]}] [Num={ack_number if ack_number is not None else 'NULL'}] [ACK] {message}")
         elif type == "timeout":
-            print(f"[!] [{address[0]}:{address[1]}] [Num={seq_number if seq_number is not None else "NULL"}] [Timeout] ACK response timeout, resending segment number {seq_number if seq_number is not None else "NULL"}")
+            print(f"[!] [{address[0]}:{address[1]}] [Num={seq_number if seq_number is not None else 'NULL'}] [Timeout] ACK response timeout, resending segment number {seq_number if seq_number is not None else 'NULL'}")
         elif type == "close":
             print(f"[!] [{address[0]}:{address[1]}] [CLS] File transfer completed, initiating closing connection...")
         elif type == "fin":
             print(f"[!] [{address[0]}:{address[1]}] [FIN] Sending FIN...")
         else:
-            print(f"[!] {"["+address[0]+":"+address[1]+"]" if address is not None else ""} {message}")
+            print(f"[!] [{address[0]}:{address[1] if address is not None else ''}] {message}")
 
     def _three_way_error(self):
         raise Exception()
@@ -152,15 +152,12 @@ class Server:
             # Asumsikan SYN sudah diterima
 
             # Sequence 2: Kirimkan SYN + ACK ke client
-            random_number = random.randint(0, 30000)
-            while(random_number != req_seqnumber):
-                random_number = random.randint(0, 30000)
 
             res_segment = Segment()
             res_segment.set_flag([lib.segment.SYN_FLAG, lib.segment.ACK_FLAG])
-            res_segment.set_header({"sequence": random_number, "ack": req_seqnumber + 1})
+            res_segment.set_header({"sequence": 1, "ack": 1})
             
-            self.connection.send_data(res_segment, (client_addr, req_port))
+            self.connection.send_data(res_segment, client_addr)
 
             # Sequence 3: Tunggu ACK dari client
             ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
