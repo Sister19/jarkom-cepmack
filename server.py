@@ -6,6 +6,7 @@ import lib.segment
 import os, sys
 import random
 import signal
+import math
 
 class Server:
     def __init__(self):
@@ -23,6 +24,7 @@ class Server:
         try:
             self.file = open(self.path, "rb")
             self.filesize = os.stat(self.path).st_size
+            self.filename = os.path.basename(self.path)
         except FileNotFoundError:
             print("File not found")
             sys.exit(1)
@@ -63,8 +65,26 @@ class Server:
 
     def file_transfer(self, client_addr : tuple[str, int]):
         # File transfer, server-side, Send file to 1 client
-        # TODO: tambah three_way_handshake untuk tiap klien
-        pass
+        window_size = lib.config.WINDOW_SIZE
+        seq_base = 0
+        seq_max = window_size + 1
+        segment_count = math.ceil(self.filesize / 32768)
+        seq_window_bound = min(seq_base + window_size, segment_count) - seq_base
+        
+        # Open file to transfer
+        with open(self.path, "rb") as f:
+            
+            # File transfer
+            while seq_base < segment_count:
+
+                # Send segments within window
+                for i in range(seq_window_bound):
+                    data_segment = Segment()
+                    # TODO: Complete this (Andika)
+
+            # Begin 2 way handshake to terminate connection
+
+            # Waiting ACK response
 
     def _three_way_error(self):
         raise Exception()
@@ -76,9 +96,7 @@ class Server:
             signal.alarm(5)
 
             # Sequence 1: Tunggu SYN dari client
-            req_segment, (req_ip, req_port) = self.connection.listen_single_segment()
-            # print(req_segment)
-            req_seqnumber = req_segment.get_header()['sequence']
+            # Asumsikan SYN sudah diterima
 
             # Sequence 2: Kirimkan SYN + ACK ke client
             random_number = random.randint(0, 30000)
@@ -89,8 +107,7 @@ class Server:
             res_segment.set_flag([lib.segment.SYN_FLAG, lib.segment.ACK_FLAG])
             res_segment.set_header({"sequence": random_number, "ack": req_seqnumber + 1})
             
-            if (req_segment.valid_checksum() and (req_ip, req_port) == client_addr):
-                self.connection.send_data(res_segment, (client_addr, req_port))
+            self.connection.send_data(res_segment, (client_addr, req_port))
 
             # Sequence 3: Tunggu ACK dari client
             ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
@@ -107,7 +124,7 @@ class Server:
 
     def motd(self):
         print(f"[!] Server started at localhost:{self.port}")
-        print(f"[!] Source file | {os.path.basename(self.path).split('/')[-1]} | {os.path.getsize(self.path)} bytes")
+        print(f"[!] Source file | {self.filename} | {self.filesize} bytes")
         print(f"[!] Listening to broadcast address for clients.")
         print()
 
