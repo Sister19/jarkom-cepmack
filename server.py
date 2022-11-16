@@ -76,7 +76,7 @@ class Server:
             signal.alarm(5)
 
             # Sequence 1: Tunggu SYN dari client
-            req_segment, (req_addr, req_port) = self.connection.listen_single_segment()
+            req_segment, (req_ip, req_port) = self.connection.listen_single_segment()
             req_seqnumber = req_segment.get_header()['sequence']
 
             # Sequence 2: Kirimkan SYN + ACK ke client
@@ -88,13 +88,13 @@ class Server:
             res_segment.set_flag([lib.segment.SYN_FLAG, lib.segment.ACK_FLAG])
             res_segment.set_header({"sequence": random_number, "ack": req_seqnumber + 1})
             
-            if (req_segment.valid_checksum() and req_addr == client_addr):
+            if (req_segment.valid_checksum() and (req_ip, req_port) == client_addr):
                 self.connection.send_data(res_segment, (client_addr, req_port))
 
             # Sequence 3: Tunggu ACK dari client
-            ack_segment, (ack_addr, ack_port) = self.connection.listen_single_segment()
+            ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
             ack_flag = ack_segment.ack
-            if ack_flag and ack_addr == client_addr:
+            if ack_flag and ack_ip == client_addr:
                 print(f"Client {client_addr} connected")
                 return True
             else:
