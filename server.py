@@ -6,6 +6,7 @@ import lib.segment
 import os, sys
 import random
 import signal
+import math
 
 class Server:
     def __init__(self):
@@ -28,7 +29,8 @@ class Server:
             print("File not found")
             sys.exit(1)
         
-        self.segment_count = (self.filesize + lib.config.SEGMENT_SIZE - 13) // (lib.config.SEGMENT_SIZE - 12)
+        self.payload_size = lib.config.SEGMENT_SIZE - 12
+        self.segment_count = (self.filesize + self.payload_size - 1) // (self.payload_size - 12)
         self.connection = Connection(self.ip, self.port, broadcast_bind=True)
         self.connection.set_timeout(lib.config.SERVER_LISTEN_TIMEOUT)
 
@@ -36,6 +38,8 @@ class Server:
 
     def listen_for_clients(self):
         # Waiting client for connect
+
+        # START OF NYOBAIN DOANG (UPDATE THIS IF YOU ARE GOING TO USE THIS)
         self.client_list = []
         while True:
             resp = self.connection.listen_single_segment()
@@ -43,29 +47,22 @@ class Server:
             addr = resp[1]
             if segment is None:
                 # Timeout
-                print("Timeout")
                 continue
             if segment.get_flag().syn and segment.valid_checksum():
                 if addr not in self.client_list:
                     self.client_list.append(addr)
+                    print(segment)
                     print(f"Client {addr} connected")
-                else:
-                    print(f"Client {addr} already connected")
                 prompt = input("[?] Listen more? (y/n) ")
                 if prompt != "y":
                     break
 
+        # END OF NYOBAIN DOANG (UPDATE THIS IF YOU ARE GOING TO USE THIS)
         
 
     def start_file_transfer(self):
         # Handshake & file transfer for all client
-        self.connected_client = []
-        for(client_ip, client_port) in self.client_list:
-            if self.three_way_handshake((client_ip, client_port)):
-                self.connected_client.append((client_ip, client_port))
-
-        for(client_ip, client_port) in self.connected_client:
-            self.file_transfer((client_ip, client_port))
+        pass
 
     def file_transfer(self, client_addr : tuple[str, int]):
         # File transfer, server-side, Send file to 1 client
@@ -74,11 +71,32 @@ class Server:
         seq_max = window_size + 1
         seq_window_bound = min(seq_base + window_size, self.segment_count) - seq_base
         
-        # Open file to transfer
+        # File transfer
         while seq_base < self.segment_count:
-            data_segment = Segment()
-            self.file.seek(lib.config.SEGMENT_SIZE - 12)
-            seq_base+=1
+            # Send segment within window
+            for i in range(seq_window_bound):
+                data_segment = Segment()
+                self.file.seek(self.payload_size * (seq_base + i))
+                data_segment.set_payload(self.file.read(self.payload_size))
+                data_segment.set_header({"sequence": seq_base + i, "ack": 0})
+                self.connection.send_data(data_segment, client_addr)
+                self._verbose(type="transfer", address=client_addr, seq_number=seq_base + i)
+            
+            # set max_seq_base to seq_base + window_size
+            max_seq_base = seq_base + window_size
+
+            while seq_base < max_seq_base:
+                res_segment, (res_ip, res_port) = self.connection.listen_single_segment()
+                if res_segment.get_flag().ack:
+                    ack_number = res_segment.get_header()["ack"]
+                    if ack_number > seq_base:
+                        seq_base += 1
+                        seq_window_bound = min(seq_base + window_size, self.segment_count) - seq_base
+                        self._verbose(type="ack", address=client_addr, message=f"ACK number {ack_number} > {seq_base-1}, shift sequence base to {seq_base}")
+                    else: # ack_number <= seq_base
+                        self._verbose(type="ack", address=client_addr, message=f"ACK number {ack_number} = {seq_base}, retaining sequence base...")
+                else:
+                    self._verbose(address=client_addr, message="[Timeout] ACK response timeout, resending segment(s)...")
 
         # Begin 2 way handshake to terminate connection
         fin_segment = Segment()
@@ -95,12 +113,31 @@ class Server:
                 fin_ack_segment = Segment()
                 fin_ack_segment.set_flag([lib.segment.ACK_FLAG, lib.segment.FIN_FLAG])
                 self.connection.send_data(fin_ack_segment, client_addr)
-                print(f"Client {client_addr} terminated")
+                self._verbose(address=client_addr, message=f"Client connection terminated")
             else:
-                print(f"Client {client_addr} bukan ack dari client yang bersangkutan") # ganti verbosenya jika diperlukan
-        
+                self._verbose(message=f"Client {client_addr} bukan ack dari client yang bersangkutan") # ganti verbosenya jika diperlukan
 
-        
+    def _verbose(self, type: string=None, address: tuple[str, int]=None, seq_number: int=None, ack_number: int=None, message: string=None):
+        """
+        types: None (tidak ada pesan spesifik), "handshake", "init", "transfer", "ack", "timeout", "close", "fin"
+        message: Pesan yang ingin disampaikan
+        """
+        if type == "handshake":
+            print(f"[!] [Handshake] Handshake to {address[0]}:{address[1]}")
+        elif type == "init":
+            print(f"[!] [{address[0]}:{address[1]}] Initiating file transfer...")
+        elif type == "transfer":
+            print(f"[!] [{address[0]}:{address[1]}] [Num={seq_number if seq_number is not None else "NULL"}] Sending segment to client...")
+        elif type == "ack":
+            print(f"[!] [{address[0]}:{address[1]}] [Num={ack_number if ack_number is not None else "NULL"}] [ACK] {message}")
+        elif type == "timeout":
+            print(f"[!] [{address[0]}:{address[1]}] [Num={seq_number if seq_number is not None else "NULL"}] [Timeout] ACK response timeout, resending segment number {seq_number if seq_number is not None else "NULL"}")
+        elif type == "close":
+            print(f"[!] [{address[0]}:{address[1]}] [CLS] File transfer completed, initiating closing connection...")
+        elif type == "fin":
+            print(f"[!] [{address[0]}:{address[1]}] [FIN] Sending FIN...")
+        else:
+            print(f"[!] {"["+address[0]+":"+address[1]+"]" if address is not None else ""} {message}")
 
     def _three_way_error(self):
         raise Exception()
@@ -115,15 +152,20 @@ class Server:
             # Asumsikan SYN sudah diterima
 
             # Sequence 2: Kirimkan SYN + ACK ke client
+            random_number = random.randint(0, 30000)
+            while(random_number != req_seqnumber):
+                random_number = random.randint(0, 30000)
+
             res_segment = Segment()
             res_segment.set_flag([lib.segment.SYN_FLAG, lib.segment.ACK_FLAG])
+            res_segment.set_header({"sequence": random_number, "ack": req_seqnumber + 1})
             
-            self.connection.send_data(res_segment, client_addr)
+            self.connection.send_data(res_segment, (client_addr, req_port))
 
             # Sequence 3: Tunggu ACK dari client
             ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
             ack_flag = ack_segment.ack
-            if ack_flag and (ack_ip, ack_port) == client_addr:
+            if ack_flag and ack_ip == client_addr:
                 print(f"Client {client_addr} connected")
                 return True
             else:
@@ -143,5 +185,5 @@ if __name__ == '__main__':
     main = Server()
     main.motd()
     main.listen_for_clients()
-    # main.three_way_handshake(("127.0.0.1", 4500))
-    main.start_file_transfer()
+    main.three_way_handshake(("127.0.0.1", 4500))
+    # main.start_file_transfer()
