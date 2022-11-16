@@ -34,6 +34,7 @@ class Client:
         signal.signal(signal.SIGALRM, self._three_way_error)
         try:
             signal.alarm(5)
+            print("test")
             # Hendshek pertama ngirim SYN
             server_request = Segment()
             server_request.set_flag([lib.segment.SYN_FLAG])
@@ -44,16 +45,19 @@ class Client:
             # Hendshek kedua nunggu SYN+ACK
             segment_recv, (addr_recv, port_recv) = self.connection.listen_single_segment()
 
-            while(not segment_recv.valid_checksum()):
+            while(not segment_recv):
                 self.connection.send_data(server_request, (BROADCAST_ADDRESS, self.broadcast_port))
                 segment_recv, (addr_recv, port_recv) = self.connection.listen_single_segment()
 
 
             # Hendshek ketiga ngirim ACK (kalo dapet)
-            ack_res = Segment()
-            ack_res.set_flag([lib.segment.ACK_FLAG])
-            ack_res.set_header({"sequence": 1, "ack" : segment_recv.get_header()["sequence"]+1})
-            self.connection.send_data(ack_res, (BROADCAST_ADDRESS, self.broadcast_port))
+            if segment_recv.valid_checksum() and segment_recv.get_flag().ack and segment_recv.get_flag().syn:
+                ack_res = Segment()
+                ack_res.set_flag([lib.segment.ACK_FLAG])
+                ack_res.set_header({"sequence": 1, "ack" : segment_recv.get_header()["sequence"]+1})
+                self.connection.send_data(ack_res, (addr_recv, port_recv))
+            else:
+                print("bukan synack")
         except:
             print("tiga jalan goyang tangan")
             print("untuk membuka jaringan")
@@ -63,10 +67,12 @@ class Client:
             
     def listen_file_transfer(self):
         # File transfer, client-side
-        pass
+        Rn = 0
+        while True:
+            segment_recv, (addr_recv, port_recv) = self.connection.listen_single_segment()
 
 
 if __name__ == '__main__':
     main = Client()
     main.three_way_handshake()
-    main.listen_file_transfer()
+    # main.listen_file_transfer()
