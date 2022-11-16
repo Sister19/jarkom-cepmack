@@ -29,7 +29,7 @@ class Server:
             print("File not found")
             sys.exit(1)
         
-        self.segment_count = (self.filesize + lib.config.SEGMENT_SIZE - 1) // lib.config.SEGMENT_SIZE
+        self.segment_count = (self.filesize + lib.config.SEGMENT_SIZE - 13) // (lib.config.SEGMENT_SIZE - 12)
         self.connection = Connection(self.ip, self.port, broadcast_bind=True)
         self.connection.set_timeout(lib.config.SERVER_LISTEN_TIMEOUT)
 
@@ -68,10 +68,12 @@ class Server:
         window_size = lib.config.WINDOW_SIZE
         seq_base = 0
         seq_max = window_size + 1
-        seq_window_bound = min(seq_base + window_size, segment_count) - seq_base
+        seq_window_bound = min(seq_base + window_size, self.segment_count) - seq_base
         
         # Open file to transfer
         while seq_base < self.segment_count:
+            data_segment = Segment()
+            self.file.seek(lib.config.SEGMENT_SIZE - 12)
 
         # Begin 2 way handshake to terminate connection
 
