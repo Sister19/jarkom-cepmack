@@ -27,6 +27,7 @@ class Client:
         
         self.connection = Connection(self.ip, self.port, send_broadcast=True)
         self.connection.set_timeout(lib.config.CLIENT_LISTEN_TIMEOUT)
+        self.server_ip = BROADCAST_ADDRESS
 
     def _three_way_error(self):
         raise Exception()
@@ -49,6 +50,7 @@ class Client:
                 self.connection.send_data(server_request, (BROADCAST_ADDRESS, self.broadcast_port))
                 segment_recv, (addr_recv, port_recv) = self.connection.listen_single_segment()
 
+            self.server_ip = addr_recv
             print('test')
             # Hendshek ketiga ngirim ACK (kalo dapet)
             if segment_recv.valid_checksum() and segment_recv.get_flag().ack and segment_recv.get_flag().syn:
@@ -68,7 +70,7 @@ class Client:
             
     def listen_file_transfer(self):
         # File transfer, client-side
-        segment_list = []
+        payload = b''
         Rn = 0
         active = True
         while active:
@@ -77,26 +79,30 @@ class Client:
             segment_recv_ack = segment_recv.get_header()['ack']
             if(segment_recv.get_flag().fin):
                 segment_ack = Segment()
-                segment_ack.set_flag([lib.segment.FIN_ACK])
+                segment_ack.set_flag([lib.segment.FIN_FLAG])
                 self.connection.send_data(segment_ack, addr_recv)
                 active = False
             else:
-                if(segment_recv_seq == Rn):
-                    segment_list.append(segment_recv)
+                if(segment_recv_seq == Rn and segment_recv.valid_checksum()):
+                    payload += segment_recv.get_payload()
                     Rn += 1
+                else:
+                    # buang segmen 
+                    pass
                 segment_ack = Segment()
-                random_number = random.randint(0, 30000)
-                while(random_number != segment_recv_seq):
-                    random_number = random.randint(0, 30000)
-                segment_ack.set_header({'sequence': random_number, 'ack': segment_recv_seq+1})
+                segment_ack.set_header({'sequence': 0, 'ack': Rn})
                 segment_ack.set_flag([lib.segment.ACK_FLAG])
                 self.connection.send_data(segment_ack, addr_recv)
-    
-        return segment_list
+        
+        # pengiriman file selesai
+        file = open(self.path, 'wb')
+        file.write(payload)
+        file.close()
+        
         
 
 
 if __name__ == '__main__':
     main = Client()
     main.three_way_handshake()
-    # main.listen_file_transfer()
+    main.listen_file_transfer()
