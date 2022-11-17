@@ -29,7 +29,7 @@ class Client:
         self.server_ip = BROADCAST_ADDRESS
         self.motd()
 
-    def _three_way_error(self):
+    def _three_way_error(self, sig, frame):
         raise Exception()
 
     def three_way_handshake(self):
@@ -48,6 +48,7 @@ class Client:
             # Hendshek kedua nunggu SYN+ACK
             print("[!] [Handshake] Waiting for syn+ack from server.")
             segment_recv, (addr_recv, port_recv) = self.connection.listen_single_segment()
+            print('sampe sini ga')
 
             while(not segment_recv):
                 print("[!] [Handshake] No response from server, retrying...")
@@ -65,19 +66,25 @@ class Client:
                 ack_res.set_header({"sequence": 1, "ack" : segment_recv.get_header()["sequence"]+1})
                 self.connection.send_data(ack_res, (addr_recv, port_recv))
                 print("[!] [Handshake] ACK received, handshake success.")
+                print("[!] [Handshake] Handshake success.")
+                signal.alarm(0)
+                return True
             elif not segment_recv.valid_checksum():
                 print("[!] [ERR] [Handshake] Handshake failed, checksum invalid.")
+                raise Exception()
             elif not segment_recv.get_flag().ack or segment_recv.get_flag().syn:
                 print("[!] [ERR] [Handshake] Handshake failed, syn+ack not received.")
+                raise Exception()
             elif segment_recv.get_header()['ack'] != 1:
                 print("[!] [ERR] [Handshake] Handshake failed, ack header doen't match.")
+                raise Exception()
         except:
             print("tiga jalan goyang tangan")
             print("untuk membuka jaringan")
             print("gagal dijalankan")
             print("sangat disayangkan")
             print(f"[!] [ERR] [TIMEOUT] Server not found at {BROADCAST_ADDRESS}:{self.broadcast_port}")
-            sys.exit(1)
+            return False
             
             
     def listen_file_transfer(self):
@@ -86,25 +93,27 @@ class Client:
         Rn = 0
         active = True
         while active:
+            print('hmm')
             segment_recv, addr_recv = self.connection.listen_single_segment()
-            segment_recv_seq = segment_recv.get_header()['sequence']
-            segment_recv_ack = segment_recv.get_header()['ack']
-            if(segment_recv.get_flag().fin):
+            if(segment_recv and segment_recv.get_flag().fin):
                 segment_ack = Segment()
                 segment_ack.set_flag([lib.segment.FIN_FLAG])
                 self.connection.send_data(segment_ack, addr_recv)
                 active = False
-            else:
-                if(segment_recv_seq == Rn and segment_recv.valid_checksum()):
+            elif not addr_recv or (self.server_ip, self.broadcast_port) == addr_recv:
+                if(segment_recv and segment_recv.get_header()['sequence'] == Rn and segment_recv.valid_checksum()):
                     payload += segment_recv.get_payload()
                     Rn += 1
                 else:
-                    # buang segmen 
-                    pass
+                    # buang segmen
+                    if(segment_recv):
+                        print('buang segmen') 
+                    else:
+                        print('ga dpt segmen')
                 segment_ack = Segment()
                 segment_ack.set_header({'sequence': 0, 'ack': Rn})
                 segment_ack.set_flag([lib.segment.ACK_FLAG])
-                self.connection.send_data(segment_ack, addr_recv)
+                self.connection.send_data(segment_ack, (self.server_ip, self.broadcast_port))
         
 
 
@@ -127,5 +136,5 @@ class Client:
 
 if __name__ == '__main__':
     main = Client()
-    main.three_way_handshake()
-    main.listen_file_transfer()
+    if main.three_way_handshake():
+        main.listen_file_transfer()
