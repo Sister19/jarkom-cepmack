@@ -48,7 +48,7 @@ class Server:
             if segment.get_flag().syn and segment.valid_checksum():
                 if addr not in self.client_list:
                     (client_ip, client_port) = addr
-                    self.client_list.append(segment.get_header(), addr)
+                    self.client_list.append((segment.get_header(), addr))
                     print(segment)
                     print(f"[!] Received request from {client_ip}:{client_port}")
                 else:
@@ -58,8 +58,9 @@ class Server:
                     print()
                     print("Client list")
                     for i in range(len(self.client_list)):
-                        (client_ip, client_port) = self.client_list[i]
+                        (_, (client_ip, client_port)) = self.client_list[i]
                         print(f"[{i}] {client_ip}:{client_port}")
+                    print()
                     break
             elif not segment.get_flag().syn:
                 print("[!] [ERR] Received non SYN segment request")
@@ -74,7 +75,8 @@ class Server:
         i = 1
         for client_header, client_addr in self.client_list:
             # 3 way handshake
-            print(f"[!] [Handshake] Handshake to {client_addr[0]}:{client_addr[1]}")
+            print()
+            print(f"[!] [Handshake] Handshake to client {i} at {client_addr[0]}:{client_addr[1]}")
             if(self.three_way_handshake(i, client_header, client_addr)):
                 self.connected_client.append(client_addr)
                 i+=1
@@ -168,7 +170,6 @@ class Server:
         # Three way handshake, server-side, 1 client
 
         # Sequence 2: Kirimkan SYN + ACK ke client
-        print()
         print(f"[!] [Handshake] [Client {client_id}] Sending SYN + ACK to {client_addr[0]}:{client_addr[1]}")
         res_segment = Segment()
         res_segment.set_flag([lib.segment.SYN_FLAG, lib.segment.ACK_FLAG])
@@ -180,14 +181,15 @@ class Server:
         print(f"[!] [Handshake] [Client {client_id}] Waiting ACK from {client_addr[0]}:{client_addr[1]}")
         ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
         ack_flag = ack_segment.ack
-        if ack_flag and ack_ip == client_addr and ack_segment.get_header()['ack'] == 2:
+        if ack_flag and (ack_ip, ack_port) == client_addr and ack_segment.get_header()['ack'] == 2:
+            print(f"[!] [Handshake] [Client {client_id}] Handshake ACK from {client_addr[0]}:{client_addr[1]} received")
             print(f"[!] [Handshake] [Client {client_id}] Handshake to {client_addr[0]}:{client_addr[1]} completed")
             return True
         elif not ack_flag:
             print(f"[!] [ERR] [Handshake] [Client {client_id}] Handshake to {client_addr[0]}:{client_addr[1]} failed, ACK flag not set")
             return False
-        elif ack_ip != client_addr:
-            print(f"[!] [ERR] [Handshake] [Client {client_id}] Handshake to {client_addr[0]}:{client_addr[1]} failed, ACK IP not match")
+        elif (ack_ip, ack_port) != client_addr:
+            print(f"[!] [ERR] [Handshake] [Client {client_id}] Handshake to {client_addr[0]}:{client_addr[1]} failed, ACK address not match")
             return False
         elif ack_segment.get_header()['ack'] != 2:
             print(f"[!] [ERR] [Handshake] [Client {client_id}] Handshake to {client_addr[0]}:{client_addr[1]} failed, ACK number not match")

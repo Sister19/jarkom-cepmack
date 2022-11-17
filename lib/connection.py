@@ -27,7 +27,6 @@ class Connection:
     def send_data(self, msg : Segment, dest : tuple[str, int]):
         # dest: (ip, port)
         # Send single segment into destination
-        print("Sending data to", dest)
         self.socket.sendto(msg.get_bytes(), dest)
 
     def listen_single_segment(self) -> tuple[Segment, tuple[str, int]]:

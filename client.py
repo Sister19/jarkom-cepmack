@@ -38,7 +38,7 @@ class Client:
         try:
             signal.alarm(lib.config.CLIENT_LISTEN_TIMEOUT*3)
             # Hendshek pertama ngirim SYN
-            print("[!] [Handshake] Sending syn request to broadcast address at {self.broadcast_port}.")
+            print(f"[!] [Handshake] Sending syn request to broadcast address at {self.broadcast_port}.")
             server_request = Segment()
             server_request.set_flag([lib.segment.SYN_FLAG])
             server_request.set_header({"sequence": 0, "ack" : 0})
@@ -64,7 +64,7 @@ class Client:
                 ack_res.set_flag([lib.segment.ACK_FLAG])
                 ack_res.set_header({"sequence": 1, "ack" : segment_recv.get_header()["sequence"]+1})
                 self.connection.send_data(ack_res, (addr_recv, port_recv))
-                print("[!] [Handshake] Handshake success.")
+                print("[!] [Handshake] ACK received, handshake success.")
             elif not segment_recv.valid_checksum():
                 print("[!] [ERR] [Handshake] Handshake failed, checksum invalid.")
             elif not segment_recv.get_flag().ack or segment_recv.get_flag().syn:
@@ -77,6 +77,7 @@ class Client:
             print("gagal dijalankan")
             print("sangat disayangkan")
             print(f"[!] [ERR] [TIMEOUT] Server not found at {BROADCAST_ADDRESS}:{self.broadcast_port}")
+            sys.exit(1)
             
             
     def listen_file_transfer(self):
