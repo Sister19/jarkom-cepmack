@@ -90,9 +90,9 @@ class Server:
             print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{i}"}, content=f"Starting file transfer to client {i} at {client_addr[0]}:{client_addr[1]}"))
             self.file_transfer(i, client_addr)
             i+=1
-
-        print(Verbose(title="File Transfer", content=f"File transfer finished."))
-        print()
+        if(i>1):
+            print(Verbose(title="File Transfer", content=f"File transfer finished."))
+            print()
         print(Verbose(subtitle={"CLS":""}, content=f"Closing server..."))
         self.connection.close_socket()
         sys.exit()
