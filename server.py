@@ -131,7 +131,7 @@ class Server:
                     print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "NUM":i}, content=f"Sent segment {i} to {client_addr[0]}:{client_addr[1]}"))
             else:
                 ack_number = ack_segment.get_header()["ack"]
-                if ack_number > seq_lower_base + 1:
+                if ack_number >= seq_lower_base + 1:
                     print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "NUM":seq_lower_base, "ACK":""}, content=f"Received ACK {ack_number} from {ack_ip}:{ack_port}"))
                     seq_lower_base = ack_number
                     for i in range(seq_lower_base+1, min(seq_upper_base + window_size - 1, self.segment_count-1) + 1):
