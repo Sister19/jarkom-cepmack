@@ -39,7 +39,7 @@ class Client:
         raise Exception()
 
     def three_way_handshake(self):
-        signal.signal(signal.SIGALRM, self._three_way_error)
+        signal.signal(signal.SIGALRM, self.__signal_error)
         self.connection.set_timeout(lib.config.CLIENT_LISTEN_TIMEOUT)
         try:
             signal.alarm(lib.config.CLIENT_LISTEN_TIMEOUT*3)
