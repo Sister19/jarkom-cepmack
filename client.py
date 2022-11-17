@@ -144,8 +144,8 @@ class Client:
             elif addr_recv or (self.server_ip, self.broadcast_port) == addr_recv:
                 if(segment_recv and segment_recv.get_header()['sequence'] == Rn and segment_recv.valid_checksum()):
                     payload += segment_recv.get_payload()
-                    Rn += 1
                     print(Verbose(title="File Transfer", subtitle={"NUM":Rn}, content=f"Received segment {Rn}, sending ack..."))
+                    Rn += 1
                 else:
                     # buang segmen
                     if(segment_recv):
