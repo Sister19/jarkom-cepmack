@@ -153,6 +153,7 @@ class Server:
                 # self._verbose(address=client_addr, message=f"Client connection terminated")
             else:
                 # self._verbose(message=f"Client {client_addr} bukan ack dari client yang bersangkutan")
+                pass
 
 
     def three_way_handshake(self, client_id: int, client_header:dict, client_addr: tuple[str, int]) -> bool:
