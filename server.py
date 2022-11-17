@@ -6,6 +6,7 @@ import lib.verbose
 import lib.segment
 import os, sys
 from lib.verbose import Verbose
+import signal
 
 class Server:
     def __init__(self):
@@ -90,6 +91,9 @@ class Server:
             self.file_transfer(i, client_addr)
             i+=1
 
+
+    def __signal_error(self, sig, frame):
+        raise Exception()
                 
 
     def file_transfer(self, client_id:int, client_addr : tuple[str, int]):
@@ -97,32 +101,32 @@ class Server:
         window_size = lib.config.WINDOW_SIZE
         seq_lower_base = 0
         seq_upper_base = seq_lower_base + window_size - 1
-        
+        self.connection.set_timeout(lib.config.SERVER_TRANSFER_TIMEOUT)
         for i in range(seq_lower_base, min(seq_upper_base, self.segment_count) + 1):
             data_segment = Segment()
             self.file.seek(self.payload_size * (seq_lower_base + i))
             data_segment.set_payload(self.file.read(self.payload_size))
             data_segment.set_header({"sequence": i, "ack": 0})
             self.connection.send_data(data_segment, client_addr)
-            # TODO: kasih pesan verbose
-            print(f"Ngirim segmen {i}")
+            print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "NUM":i}, content=f"Sent segment {i} to {client_addr[0]}:{client_addr[1]}"))
         
         while seq_lower_base <= self.segment_count-1:
             # Listen for ACK(s)
             ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
             if not ack_segment:
                 # Send segment within window_size
+                print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "ERR":"", "TIMEOUT":""}, content=f"Timeout, resending segment {seq_lower_base} to {client_addr[0]}:{client_addr[1]}"))
                 for i in range(seq_lower_base, min(seq_upper_base, self.segment_count) + 1):
                     data_segment = Segment()
                     self.file.seek(self.payload_size * (seq_lower_base + i))
                     data_segment.set_payload(self.file.read(self.payload_size))
                     data_segment.set_header({"sequence": i, "ack": 0})
                     self.connection.send_data(data_segment, client_addr)
-                    # TODO: kasih pesan verbose
-                    print(f"Ngirim segmen {i}")
+                    print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "NUM":i}, content=f"Sent segment {i} to {client_addr[0]}:{client_addr[1]}"))
             else:
                 ack_number = ack_segment.get_header()["ack"]
                 if ack_number == seq_lower_base + 1:
+                    print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "NUM":seq_lower_base, "ACK":""}, content=f"Received ACK {ack_number} from {ack_ip}:{ack_port}"))
                     seq_lower_base += 1
                     for i in range(seq_upper_base+1, min(seq_lower_base + window_size - 1, self.segment_count-1) - 1):
                         data_segment = Segment()
@@ -130,30 +134,54 @@ class Server:
                         data_segment.set_payload(self.file.read(self.payload_size))
                         data_segment.set_header({"sequence": i, "ack": 0})
                         self.connection.send_data(data_segment, client_addr)
-                        # TODO: kasih pesan verbose
-                        print(f"Ngirim segmen {i}")
+                        print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "NUM":i}, content=f"Sent segment {i} to {client_addr[0]}:{client_addr[1]}"))
                     seq_upper_base = min(seq_lower_base + window_size - 1, self.segment_count - 1)
-                # TODO: kasih pesan verbose
+                else:
+                    print(Verbose(title="File Transfer", 
+                    subtitle={"CLIENT":f"{client_id}", "ERR":"", "ACK": ack_number}, 
+                    content=f"Received invalid ACK from {ack_ip}:{ack_port}, expected {seq_lower_base+1}. Ignoring..."))
+                # print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "NUM":seq_lower_base,"ACK": "", "ACK":ack_number}, content=f"Waiting for ACK from {client_addr[0]}:{client_addr[1]}"))
 
         # Begin 2 way handshake to terminate connection
+        print()
+        print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "CLS":""}, content=f"File transfer to {client_addr[0]}:{client_addr[1]} completed. Closing connection..."))
+        print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "FIN":""}, content=f"Sending FIN to {client_addr[0]}:{client_addr[1]}"))
         fin_segment = Segment()
         fin_segment.set_flag([lib.segment.FIN_FLAG])
         self.connection.send_data(fin_segment, client_addr)
 
         # Waiting ACK response
-        ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
-        if(ack_segment is None):
-            print("Timeout")
-        else:
-            ack_flag = ack_segment.ack
-            if ack_flag and (ack_ip, ack_port) == client_addr:
-                fin_ack_segment = Segment()
-                fin_ack_segment.set_flag([lib.segment.ACK_FLAG, lib.segment.FIN_FLAG])
-                self.connection.send_data(fin_ack_segment, client_addr)
-                # self._verbose(address=client_addr, message=f"Client connection terminated")
+        signal.signal(signal.SIGALRM, self.__signal_error)
+        self.connection.set_timeout(lib.config.SERVER_LISTEN_TIMEOUT)
+        try:
+            signal.alarm(lib.config.SERVER_LISTEN_TIMEOUT*3)
+            ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
+            print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "ACK":""}, content=f"Waiting ACK from {client_addr[0]}:{client_addr[1]}"))
+            while(ack_segment is None):
+                self.connection.send_data(fin_segment, client_addr)
+                ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
             else:
-                # self._verbose(message=f"Client {client_addr} bukan ack dari client yang bersangkutan")
-                pass
+                ack_flag = ack_segment.ack
+                print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "FIN":""}, content=f"Waiting FIN from {client_addr[0]}:{client_addr[1]}"))
+                fin_segment, (fin_ip, fin_port) = self.connection.listen_single_segment()
+                while(fin_segment is None):
+                    self.connection.send_data(fin_segment, client_addr)
+                    fin_segment, (fin_ip, fin_port) = self.connection.listen_single_segment()
+                else:
+                    fin_flag = fin_segment.get_flag()
+                    if ack_flag and (ack_ip, ack_port) == client_addr and fin_flag.fin and (fin_ip, fin_port) == client_addr:
+                        fin_ack_segment = Segment()
+                        fin_ack_segment.set_flag([lib.segment.ACK_FLAG])
+                        self.connection.send_data(fin_ack_segment, client_addr)
+                        print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "FIN+ACK":""}, content=f"FIN+ACK received from {client_addr[0]}:{client_addr[1]}"))
+                        print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "ACK":""}, content=f"ACK sent to {client_addr[0]}:{client_addr[1]}"))
+                        # self._verbose(address=client_addr, message=f"Client connection terminated")
+                    else:
+                        print(Verbose(title="File Transfer", 
+                        subtitle={"CLIENT":f"{client_id}", "FIN+ACK":"", "ERR":"", "ACK":ack_flag.ack, "FIN":fin_flag.fin}, 
+                        content=f"Received invalid FIN+ACK from {ack_ip}:{ack_port}. Ignoring..."))
+        except Exception as e:
+            print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "FIN+ACK":"", "ERR":"", "TIMEOUT":""}, content=f"Listen FIN+ACK timeout, ignoring..."))
 
 
     def three_way_handshake(self, client_id: int, client_header:dict, client_addr: tuple[str, int]) -> bool:
@@ -173,6 +201,9 @@ class Server:
         # Sequence 3: Tunggu ACK dari client
         print(Verbose(title="Handshake", subtitle={"CLIENT":f"{client_id}", "ACK":""}, content=f"Waiting for ACK from {client_addr[0]}:{client_addr[1]}"))
         ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
+        if(ack_segment is None):
+            print(Verbose(title="Handshake", subtitle={"CLIENT":f"{client_id}", "ACK":"", "ERR":"", "TIMEOUT":""}, content=f"Listen ACK timeout, ignoring..."))
+            return False
         ack_flag = ack_segment.ack
         if ack_flag and (ack_ip, ack_port) == client_addr and ack_segment.get_header()['ack'] == 2:
             print(Verbose(title="Handshake", subtitle={"CLIENT":f"{client_id}", "ACK":"", "ACK":2}, content=f"Received ACK from {client_addr[0]}:{client_addr[1]}"))
