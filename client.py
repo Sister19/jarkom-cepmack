@@ -26,17 +26,19 @@ class Client:
         self.path = args.path
         
         self.connection = Connection(self.ip, self.port, send_broadcast=True)
-        self.connection.set_timeout(lib.config.CLIENT_LISTEN_TIMEOUT)
         self.server_ip = BROADCAST_ADDRESS
+        self.motd()
 
     def _three_way_error(self, sig, frame):
         raise Exception()
 
     def three_way_handshake(self):
         signal.signal(signal.SIGALRM, self._three_way_error)
+        self.connection.set_timeout(lib.config.CLIENT_LISTEN_TIMEOUT)
         try:
-            signal.alarm(5)
+            signal.alarm(lib.config.CLIENT_LISTEN_TIMEOUT*3)
             # Hendshek pertama ngirim SYN
+            print("[!] [Handshake] Sending syn request to broadcast address at {self.broadcast_port}.")
             server_request = Segment()
             server_request.set_flag([lib.segment.SYN_FLAG])
             server_request.set_header({"sequence": 0, "ack" : 0})
@@ -44,32 +46,43 @@ class Client:
             self.connection.send_data(server_request, (BROADCAST_ADDRESS, self.broadcast_port))
 
             # Hendshek kedua nunggu SYN+ACK
+            print("[!] [Handshake] Waiting for syn+ack from server.")
             segment_recv, (addr_recv, port_recv) = self.connection.listen_single_segment()
             print('sampe sini ga')
 
             while(not segment_recv):
+                print("[!] [Handshake] No response from server, retrying...")
                 self.connection.send_data(server_request, (BROADCAST_ADDRESS, self.broadcast_port))
                 segment_recv, (addr_recv, port_recv) = self.connection.listen_single_segment()
 
             self.server_ip = addr_recv
-            print('test')
+
+
             # Hendshek ketiga ngirim ACK (kalo dapet)
-            if segment_recv.valid_checksum() and segment_recv.get_flag().ack and segment_recv.get_flag().syn:
+            print("[!] [Handshake] Received syn+ack from server, sending ack.")
+            if segment_recv.valid_checksum() and segment_recv.get_flag().ack and segment_recv.get_flag().syn and segment_recv.get_header()['ack'] == 1:
                 ack_res = Segment()
                 ack_res.set_flag([lib.segment.ACK_FLAG])
                 ack_res.set_header({"sequence": 1, "ack" : segment_recv.get_header()["sequence"]+1})
                 self.connection.send_data(ack_res, (addr_recv, port_recv))
-                print('kelar goyang tangan')
+                print("[!] [Handshake] Handshake success.")
                 signal.alarm(0)
                 return True
-            else:
-                print("bukan synack")
+            elif not segment_recv.valid_checksum():
+                print("[!] [ERR] [Handshake] Handshake failed, checksum invalid.")
+                raise Exception()
+            elif not segment_recv.get_flag().ack or segment_recv.get_flag().syn:
+                print("[!] [ERR] [Handshake] Handshake failed, syn+ack not received.")
+                raise Exception()
+            elif segment_recv.get_header()['ack'] != 1:
+                print("[!] [ERR] [Handshake] Handshake failed, ack header doen't match.")
                 raise Exception()
         except:
             print("tiga jalan goyang tangan")
             print("untuk membuka jaringan")
             print("gagal dijalankan")
             print("sangat disayangkan")
+            print(f"[!] [ERR] [TIMEOUT] Server not found at {BROADCAST_ADDRESS}:{self.broadcast_port}")
             return False
             
             
@@ -101,11 +114,22 @@ class Client:
                 segment_ack.set_flag([lib.segment.ACK_FLAG])
                 self.connection.send_data(segment_ack, (self.server_ip, self.broadcast_port))
         
+
+
+
         # pengiriman file selesai
+
+
         file = open(self.path, 'wb')
         file.write(payload)
+
+
         file.close()
         
+    def motd(self):
+        print(f"[!] Client started at {self.ip}:{self.port}")
+        print(f"[!] Sending syn request to broadcast address at {self.broadcast_port}.")
+        print()
         
 
 
