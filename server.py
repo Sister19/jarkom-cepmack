@@ -134,7 +134,7 @@ class Server:
                 if ack_number == seq_lower_base + 1:
                     print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{client_id}", "NUM":seq_lower_base, "ACK":""}, content=f"Received ACK {ack_number} from {ack_ip}:{ack_port}"))
                     seq_lower_base += 1
-                    for i in range(seq_upper_base+1, min(seq_lower_base + window_size - 1, self.segment_count-1) + 1):
+                    for i in range(seq_lower_base+1, min(seq_upper_base + window_size - 1, self.segment_count-1) + 1):
                         data_segment = Segment()
                         self.file.seek(self.payload_size * i)
                         data_segment.set_payload(self.file.read(self.payload_size))
