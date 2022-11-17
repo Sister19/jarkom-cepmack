@@ -99,6 +99,10 @@ class Client:
         file.write(payload)
         file.close()
         
+    def motd(self):
+        print(f"[!] Client started at {self.ip}:{self.port}")
+        print(f"[!] Sending syn request to broadcast address at {self.broadcast_port}.")
+        print()
         
 
 
