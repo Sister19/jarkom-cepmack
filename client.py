@@ -52,12 +52,12 @@ class Client:
             self.connection.send_data(server_request, (BROADCAST_ADDRESS, self.broadcast_port))
 
             # Hendshek kedua nunggu SYN+ACK
-            print(Verbose(title="Handshake", content=f"Waiting for syn+ack from server."))
+            print(Verbose(title="Handshake", subtitle={"SYN+ACK":""}, content=f"Waiting for syn+ack from server."))
             segment_recv, (addr_recv, port_recv) = self.connection.listen_single_segment()
             # print('sampe sini ga')
 
             while(not segment_recv):
-                print(Verbose(title="Handshake", subtitle={"ERR":"", "NO RESPONSE":""}, content=f"No response from server, retrying..."))
+                print(Verbose(title="Handshake", subtitle={"SYN+ACK":"","ERR":""}, content=f"No response from server, retrying..."))
                 self.connection.send_data(server_request, (BROADCAST_ADDRESS, self.broadcast_port))
                 segment_recv, (addr_recv, port_recv) = self.connection.listen_single_segment()
 
@@ -87,17 +87,17 @@ class Client:
 
                 signal.alarm(0)
             elif not segment_recv.valid_checksum():
-                print(Verbose(title="Handshake", subtitle={"ERR":"", "CHECKSUM":segment_recv.checksum}, content=f"Handshake failed, checksum invalid."))
+                print(Verbose(title="Handshake", subtitle={"SYN+ACK":"", "ERR":"", "CHECKSUM":segment_recv.checksum}, content=f"Handshake failed, checksum invalid."))
                 sys.exit(1)
             elif not segment_recv.get_flag().ack or segment_recv.get_flag().syn:
                 flag = segment_recv.get_flag()
-                print(Verbose(title="Handshake", subtitle={"ERR":"", "SYN":flag.syn, "ACK":flag.ack}, content=f"Handshake failed, syn+ack flag not set."))
+                print(Verbose(title="Handshake", subtitle={"SYN+ACK":"", "ERR":"", "SYN":flag.syn, "ACK":flag.ack}, content=f"Handshake failed, syn+ack flag not set."))
                 sys.exit(1)
             elif segment_recv.get_header()['ack'] != 1:
-                print(Verbose(title="Handshake", subtitle={"ERR":"", "ACK":segment_recv.get_header()['ack']}, content=f"Handshake failed, ack number not match the sequence."))
+                print(Verbose(title="Handshake", subtitle={"SYN+ACK":"", "ERR":"", "ACK":segment_recv.get_header()['ack']}, content=f"Handshake failed, ack number not match the sequence."))
                 sys.exit(1)
         except:
-            print(Verbose(title="Handshake", subtitle={"ERR":"", "TIMEOUT":""}, content=f"Server not found at port {self.broadcast_port}"))
+            print(Verbose(title="Handshake", subtitle={"SYN+ACK":"", "ERR":"", "TIMEOUT":""}, content=f"Server not found at port {self.broadcast_port}"))
             sys.exit(1)
             # print("tiga jalan goyang tangan")
             # print("untuk membuka jaringan")

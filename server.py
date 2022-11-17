@@ -53,39 +53,39 @@ class Server:
                     print(Verbose(title="Handshake", subtitle={"SYN":""}, content=f"Received request from {client_ip}:{client_port}"))
                 else:
                     print(Verbose(title="Handshake", subtitle={"SYN":""}, content=f"Received request from {client_ip}:{client_port}, but already received before"))
+                print(Verbose(type="?", content=f"Listen more? [Y/n]"), end=" ")
                 prompt = input()
-                if prompt != "y":
+                if prompt != "y" and prompt != "Y":
                     print()
                     print("Client list")
                     for i in range(len(self.client_list)):
                         (_, (client_ip, client_port)) = self.client_list[i]
-                        print(f"[{i}] {client_ip}:{client_port}")
+                        print(Verbose(content=f"[{i+1}] {client_ip}:{client_port}"))
                     print()
                     break
             elif not segment.get_flag().syn:
-                print("[!] [ERR] Received non SYN segment request")
+                print(Verbose(title="Handshake", subtitle={"ERR":""}, content=f"Received non syn segment from {addr[0]}:{addr[1]}"))
             elif not segment.valid_checksum():
-                print("[!] [ERR] Received request segment with invalid checksum")
+                print(Verbose(title="Handshake", subtitle={"ERR":"", "CHECKSUM":segment.checksum}, content=f"Received invalid checksum from {addr[0]}:{addr[1]}"))
         
 
     def start_file_transfer(self):
         # Handshake & file transfer for all client
-        print("[!] Starting file transfer")
         self.connected_client = []
         i = 1
         for client_header, client_addr in self.client_list:
             # 3 way handshake
-            print()
-            print(f"[!] [Handshake] Handshake to client {i} at {client_addr[0]}:{client_addr[1]}")
+            print(Verbose(title="Handshake", subtitle={"CLIENT":f"{i}"}, content=f"Handshake to client {i} at {client_addr[0]}:{client_addr[1]}"))
             if(self.three_way_handshake(i, client_header, client_addr)):
                 self.connected_client.append(client_addr)
                 i+=1
             else:
-                print(f"[!] [Handshake] Handshake with {client_addr[0]}:{client_addr[1]} failed, skipping...")
+                Verbose(title="Handshake", subtitle={"CLIENT":f"{i}", "ERR":""}, content=f"Handshake with {client_addr[0]}:{client_addr[1]} failed, skipping...")
+            print()
         
         # File transfer
-        print()
         for client_addr in self.connected_client:
+
             self.file_transfer(client_addr)
 
                 
@@ -93,38 +93,30 @@ class Server:
     def file_transfer(self, client_addr : tuple[str, int]):
         # File transfer, server-side, Send file to 1 client
         window_size = lib.config.WINDOW_SIZE
-        seq_base = 0
-        seq_max = window_size + 1
-        seq_window_bound = min(seq_base + window_size, self.segment_count) - seq_base
-        
-        # File transfer
-        while seq_base < self.segment_count:
-            # Send segment within window
-            for i in range(seq_window_bound):
-                data_segment = Segment()
-                self.file.seek(self.payload_size * (seq_base + i))
-                data_segment.set_payload(self.file.read(self.payload_size))
-                data_segment.set_header({"sequence": seq_base + i, "ack": 0})
-                self.connection.send_data(data_segment, client_addr)
-                self._verbose(type="transfer", address=client_addr, seq_number=seq_base + i)
-            
-            # set max_seq_base to seq_base + window_size
-            max_seq_base = seq_base + window_size
+        seq_lower_base = 0
+        seq_upper_base = seq_lower_base + window_size - 1
 
-            while seq_base < max_seq_base:
-                res_segment, (res_ip, res_port) = self.connection.listen_single_segment()
-                if(res_segment is None):
-                    self._verbose(type="timeout")
-                elif res_segment.get_flag().ack:
-                    ack_number = res_segment.get_header()["ack"]
-                    if ack_number > seq_base:
-                        seq_base += 1
-                        seq_window_bound = min(seq_base + window_size, self.segment_count) - seq_base
-                        self._verbose(type="ack", address=client_addr, message=f"ACK number {ack_number} > {seq_base-1}, shift sequence base to {seq_base}")
-                    else: # ack_number <= seq_base
-                        self._verbose(type="ack", address=client_addr, message=f"ACK number {ack_number} = {seq_base}, retaining sequence base...")
-                # else:
-                    # self._verbose(address=client_addr, message="[Timeout] ACK response timeout, resending segment(s)...")
+        while seq_lower_base <= self.segment_count:
+            # Send segment within window_size
+            for i in range(seq_lower_base, min(seq_upper_base, self.segment_count) + 1):
+                data_segment = Segment()
+                self.file.seek(self.payload_size * (seq_lower_base + i))
+                data_segment.set_payload(self.file.read(self.payload_size))
+                data_segment.set_header({"sequence": i, "ack": 0})
+                self.connection.send_data(data_segment, client_addr)
+                # TODO: kasih pesan verbose
+            
+            # Listen for ACK(s) until get appropriate ACK
+            ack_segment, (ack_ip, ack_port) = None, None
+            while(True):
+                ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
+                if ack_segment is not None:
+                    break
+            ack_number = ack_segment.get_header()["ack"]
+            if ack_number == seq_lower_base + 1:
+                seq_lower_base += 1
+                seq_upper_base = seq_lower_base + window_size - 1
+            # TODO: kasih pesan verbose
 
         # Begin 2 way handshake to terminate connection
         fin_segment = Segment()
@@ -150,29 +142,34 @@ class Server:
         # Three way handshake, server-side, 1 client
 
         # Sequence 2: Kirimkan SYN + ACK ke client
-        print(f"[!] [Handshake] [Client {client_id}] Sending SYN + ACK to {client_addr[0]}:{client_addr[1]}")
         res_segment = Segment()
         res_segment.set_flag([lib.segment.SYN_FLAG, lib.segment.ACK_FLAG])
         res_segment.set_header({"sequence": 1, "ack": client_header['sequence']+1})
+
+        print(Verbose(title="Handshake", 
+        subtitle={"CLIENT":f"{client_id}", "SYN+ACK":"", "SEQ":1, "ACK":res_segment.get_header()["ack"]}, 
+        content=f"Sending SYN + ACK to {client_addr[0]}:{client_addr[1]}"))
         
         self.connection.send_data(res_segment, client_addr)
 
         # Sequence 3: Tunggu ACK dari client
-        print(f"[!] [Handshake] [Client {client_id}] Waiting ACK from {client_addr[0]}:{client_addr[1]}")
+        print(Verbose(title="Handshake", subtitle={"CLIENT":f"{client_id}", "ACK":""}, content=f"Waiting for ACK from {client_addr[0]}:{client_addr[1]}"))
         ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
         ack_flag = ack_segment.ack
         if ack_flag and (ack_ip, ack_port) == client_addr and ack_segment.get_header()['ack'] == 2:
-            print(f"[!] [Handshake] [Client {client_id}] Handshake ACK from {client_addr[0]}:{client_addr[1]} received")
-            print(f"[!] [Handshake] [Client {client_id}] Handshake to {client_addr[0]}:{client_addr[1]} completed")
+            print(Verbose(title="Handshake", subtitle={"CLIENT":f"{client_id}", "ACK":"", "ACK":2}, content=f"Received ACK from {client_addr[0]}:{client_addr[1]}"))
+            print(Verbose(title="Handshake", subtitle={"CLIENT":f"{client_id}"}, content=f"Handshake with {client_addr[0]}:{client_addr[1]} success"))
             return True
         elif not ack_flag:
-            print(f"[!] [ERR] [Handshake] [Client {client_id}] Handshake to {client_addr[0]}:{client_addr[1]} failed, ACK flag not set")
+            print(Verbose(title="Handshake", subtitle={"CLIENT":f"{client_id}", "ACK":"", "ERR":""}, content=f"Handshake with {client_addr[0]}:{client_addr[1]} failed, ACK flag not set"))
             return False
         elif (ack_ip, ack_port) != client_addr:
-            print(f"[!] [ERR] [Handshake] [Client {client_id}] Handshake to {client_addr[0]}:{client_addr[1]} failed, ACK address not match")
+            print(Verbose(title="Handshake", subtitle={"CLIENT":f"{client_id}", "ACK":"", "ERR":""}, 
+            content=f"Handshake with {client_addr[0]}:{client_addr[1]} failed, ACK request address not match"))
             return False
         elif ack_segment.get_header()['ack'] != 2:
-            print(f"[!] [ERR] [Handshake] [Client {client_id}] Handshake to {client_addr[0]}:{client_addr[1]} failed, ACK number not match")
+            print(Verbose(title="Handshake", subtitle={"CLIENT":f"{client_id}", "ACK":"", "ERR":"", "ACK":ack_segment.get_header()['ack']},
+            content=f"Handshake with {client_addr[0]}:{client_addr[1]} failed, ACK number not match SYN ACK sequence number"))
             return False
         
 
