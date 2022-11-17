@@ -47,7 +47,7 @@ class Server:
             if segment is None:
                 continue
             if segment.get_flag().syn and segment.valid_checksum():
-                if addr not in self.client_list:
+                if addr not in [client[1] for client in self.client_list]:
                     (client_ip, client_port) = addr
                     self.client_list.append((segment.get_header(), addr))
                     print(f"[!] Received request from {client_ip}:{client_port}")
@@ -79,9 +79,9 @@ class Server:
             print(Verbose(title="Handshake", subtitle={"CLIENT":f"{i}"}, content=f"Handshake to client {i} at {client_addr[0]}:{client_addr[1]}"))
             if(self.three_way_handshake(i, client_header, client_addr)):
                 self.connected_client.append(client_addr)
-                i+=1
             else:
                 Verbose(title="Handshake", subtitle={"CLIENT":f"{i}", "ERR":""}, content=f"Handshake with {client_addr[0]}:{client_addr[1]} failed, skipping...")
+            i+=1
             print()
         
         # File transfer
