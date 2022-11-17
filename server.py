@@ -5,9 +5,7 @@ from lib.segment import Segment
 import lib.verbose
 import lib.segment
 import os, sys
-import random
-import signal
-import math
+import socket
 
 class Server:
     def __init__(self):
@@ -94,38 +92,30 @@ class Server:
     def file_transfer(self, client_addr : tuple[str, int]):
         # File transfer, server-side, Send file to 1 client
         window_size = lib.config.WINDOW_SIZE
-        seq_base = 0
-        seq_max = window_size + 1
-        seq_window_bound = min(seq_base + window_size, self.segment_count) - seq_base
-        
-        # File transfer
-        while seq_base < self.segment_count:
-            # Send segment within window
-            for i in range(seq_window_bound):
-                data_segment = Segment()
-                self.file.seek(self.payload_size * (seq_base + i))
-                data_segment.set_payload(self.file.read(self.payload_size))
-                data_segment.set_header({"sequence": seq_base + i, "ack": 0})
-                self.connection.send_data(data_segment, client_addr)
-                self._verbose(type="transfer", address=client_addr, seq_number=seq_base + i)
-            
-            # set max_seq_base to seq_base + window_size
-            max_seq_base = seq_base + window_size
+        seq_lower_base = 0
+        seq_upper_base = seq_lower_base + window_size - 1
 
-            while seq_base < max_seq_base:
-                res_segment, (res_ip, res_port) = self.connection.listen_single_segment()
-                if(res_segment is None):
-                    self._verbose(type="timeout")
-                elif res_segment.get_flag().ack:
-                    ack_number = res_segment.get_header()["ack"]
-                    if ack_number > seq_base:
-                        seq_base += 1
-                        seq_window_bound = min(seq_base + window_size, self.segment_count) - seq_base
-                        self._verbose(type="ack", address=client_addr, message=f"ACK number {ack_number} > {seq_base-1}, shift sequence base to {seq_base}")
-                    else: # ack_number <= seq_base
-                        self._verbose(type="ack", address=client_addr, message=f"ACK number {ack_number} = {seq_base}, retaining sequence base...")
-                # else:
-                    # self._verbose(address=client_addr, message="[Timeout] ACK response timeout, resending segment(s)...")
+        while seq_lower_base <= self.segment_count:
+            # Send segment within window_size
+            for i in range(seq_lower_base, min(seq_upper_base, self.segment_count) + 1):
+                data_segment = Segment()
+                self.file.seek(self.payload_size * (seq_lower_base + i))
+                data_segment.set_payload(self.file.read(self.payload_size))
+                data_segment.set_header({"sequence": i, "ack": 0})
+                self.connection.send_data(data_segment, client_addr)
+                # TODO: kasih pesan verbose
+            
+            # Listen for ACK(s) until get appropriate ACK
+            ack_segment, (ack_ip, ack_port) = None, None
+            while(True):
+                ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
+                if ack_segment is not None:
+                    break
+            ack_number = ack_segment.get_header()["ack"]
+            if ack_number == seq_lower_base + 1:
+                seq_lower_base += 1
+                seq_upper_base = seq_lower_base + window_size - 1
+            # TODO: kasih pesan verbose
 
         # Begin 2 way handshake to terminate connection
         fin_segment = Segment()
