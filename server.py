@@ -113,7 +113,9 @@ class Server:
 
             while seq_base < max_seq_base:
                 res_segment, (res_ip, res_port) = self.connection.listen_single_segment()
-                if res_segment.get_flag().ack:
+                if(res_segment is None):
+                    print(f"[!] [ERR] [TIMEOUT] ACK response timeout")
+                elif res_segment.get_flag().ack:
                     ack_number = res_segment.get_header()["ack"]
                     if ack_number > seq_base:
                         seq_base += 1
@@ -121,8 +123,8 @@ class Server:
                         self._verbose(type="ack", address=client_addr, message=f"ACK number {ack_number} > {seq_base-1}, shift sequence base to {seq_base}")
                     else: # ack_number <= seq_base
                         self._verbose(type="ack", address=client_addr, message=f"ACK number {ack_number} = {seq_base}, retaining sequence base...")
-                else:
-                    self._verbose(address=client_addr, message="[Timeout] ACK response timeout, resending segment(s)...")
+                # else:
+                    # self._verbose(address=client_addr, message="[Timeout] ACK response timeout, resending segment(s)...")
 
         # Begin 2 way handshake to terminate connection
         fin_segment = Segment()
