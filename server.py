@@ -2,6 +2,7 @@ import lib.config
 from lib.connection import Connection
 from lib.args import Args
 from lib.segment import Segment
+import lib.verbose
 import lib.segment
 import os, sys
 import random
@@ -201,9 +202,10 @@ class Server:
         
 
     def motd(self):
-        print(f"[!] Server started at {self.ip}:{self.port}")
-        print(f"[!] Source file | {self.filename} | {self.filesize} bytes")
-        print(f"[!] Listening to broadcast address for clients.")
+        print(lib.verbose.MOTD)
+        print(f"Starting server at {self.ip}:{self.port}...".center(90))
+        print(f"Opening {self.filename} with size {self.filesize} bytes...".center(90))
+        print(f"Listeng for clients...".center(90))
         print()
 
 if __name__ == '__main__':
