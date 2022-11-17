@@ -94,28 +94,43 @@ class Server:
         window_size = lib.config.WINDOW_SIZE
         seq_lower_base = 0
         seq_upper_base = seq_lower_base + window_size - 1
-
-        while seq_lower_base <= self.segment_count:
-            # Send segment within window_size
-            for i in range(seq_lower_base, min(seq_upper_base, self.segment_count) + 1):
-                data_segment = Segment()
-                self.file.seek(self.payload_size * (seq_lower_base + i))
-                data_segment.set_payload(self.file.read(self.payload_size))
-                data_segment.set_header({"sequence": i, "ack": 0})
-                self.connection.send_data(data_segment, client_addr)
-                # TODO: kasih pesan verbose
-            
-            # Listen for ACK(s) until get appropriate ACK
-            ack_segment, (ack_ip, ack_port) = None, None
-            while(True):
-                ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
-                if ack_segment is not None:
-                    break
-            ack_number = ack_segment.get_header()["ack"]
-            if ack_number == seq_lower_base + 1:
-                seq_lower_base += 1
-                seq_upper_base = seq_lower_base + window_size - 1
+        
+        for i in range(seq_lower_base, min(seq_upper_base, self.segment_count) + 1):
+            data_segment = Segment()
+            self.file.seek(self.payload_size * (seq_lower_base + i))
+            data_segment.set_payload(self.file.read(self.payload_size))
+            data_segment.set_header({"sequence": i, "ack": 0})
+            self.connection.send_data(data_segment, client_addr)
             # TODO: kasih pesan verbose
+            print(f"Ngirim segmen {i}")
+        
+        while seq_lower_base <= self.segment_count-1:
+            # Listen for ACK(s)
+            ack_segment, (ack_ip, ack_port) = self.connection.listen_single_segment()
+            if not ack_segment:
+                # Send segment within window_size
+                for i in range(seq_lower_base, min(seq_upper_base, self.segment_count) + 1):
+                    data_segment = Segment()
+                    self.file.seek(self.payload_size * (seq_lower_base + i))
+                    data_segment.set_payload(self.file.read(self.payload_size))
+                    data_segment.set_header({"sequence": i, "ack": 0})
+                    self.connection.send_data(data_segment, client_addr)
+                    # TODO: kasih pesan verbose
+                    print(f"Ngirim segmen {i}")
+            else:
+                ack_number = ack_segment.get_header()["ack"]
+                if ack_number == seq_lower_base + 1:
+                    seq_lower_base += 1
+                    for i in range(seq_upper_base+1, min(seq_lower_base + window_size - 1, self.segment_count-1) - 1):
+                        data_segment = Segment()
+                        self.file.seek(self.payload_size * (seq_lower_base + i))
+                        data_segment.set_payload(self.file.read(self.payload_size))
+                        data_segment.set_header({"sequence": i, "ack": 0})
+                        self.connection.send_data(data_segment, client_addr)
+                        # TODO: kasih pesan verbose
+                        print(f"Ngirim segmen {i}")
+                    seq_upper_base = min(seq_lower_base + window_size - 1, self.segment_count - 1)
+                # TODO: kasih pesan verbose
 
         # Begin 2 way handshake to terminate connection
         fin_segment = Segment()
