@@ -94,7 +94,7 @@ class Server:
         print(Verbose(title="File Transfer", content=f"File transfer finished."))
         print()
         print(Verbose(subtitle={"CLS":""}, content=f"Closing server..."))
-        self.connection.close()
+        self.connection.close_socket()
         sys.exit()
 
 

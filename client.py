@@ -118,12 +118,12 @@ class Client:
             # print('hmm')
             segment_recv, addr_recv = self.connection.listen_single_segment()
             if(segment_recv and segment_recv.get_flag().fin):
+                print(Verbose(title="File Transfer", subtitle={"FIN":""}, content=f"Received fin from server, sending ack."))
                 segment_ack = Segment()
                 segment_ack.set_flag([lib.segment.ACK_FLAG])
                 self.connection.send_data(segment_ack, addr_recv)
-                print(Verbose(title="File Transfer", subtitle={"FIN":""}, content=f"Received fin from server, sending ack."))
                 # CLOSING PROCESS
-                # TODO verbose nutup toko
+                print(Verbose(title="File Transfer", subtitle={"CLS":""}, content=f"Closing connection..."))
                 segment_fin = Segment()
                 segment_fin.set_flag([lib.segment.FIN_FLAG])
                 self.connection.send_data(segment_fin, addr_recv)
