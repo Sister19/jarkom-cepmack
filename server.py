@@ -5,9 +5,7 @@ from lib.segment import Segment
 import lib.verbose
 import lib.segment
 import os, sys
-import random
-import signal
-import math
+from lib.verbose import Verbose
 
 class Server:
     def __init__(self):
@@ -27,7 +25,7 @@ class Server:
             self.filesize = os.stat(self.path).st_size
             self.filename = os.path.basename(self.path)
         except FileNotFoundError:
-            print("[!] [ERR] File not found")
+            print(Verbose(Verbose(title="ERR", subtitle={"FILE":"", "PATH":self.path}, content=f"File path not found.")))
             sys.exit(1)
         
         self.payload_size = lib.config.SEGMENT_SIZE - 12
@@ -40,6 +38,7 @@ class Server:
     def listen_for_clients(self):
         # Waiting client for connect
         self.client_list = []
+        print(Verbose(title="Handshake", content=f"Waiting for syn requests from clients..."))
         while True:
             resp = self.connection.listen_single_segment()
             segment = resp[0]
@@ -50,11 +49,11 @@ class Server:
                 if addr not in self.client_list:
                     (client_ip, client_port) = addr
                     self.client_list.append((segment.get_header(), addr))
-                    print(segment)
                     print(f"[!] Received request from {client_ip}:{client_port}")
+                    print(Verbose(title="Handshake", subtitle={"SYN":""}, content=f"Received request from {client_ip}:{client_port}"))
                 else:
-                    print(f"[!] Received request from {client_ip}:{client_port} but already received before")
-                prompt = input("[?] Listen more? (y/n) ")
+                    print(Verbose(title="Handshake", subtitle={"SYN":""}, content=f"Received request from {client_ip}:{client_port}, but already received before"))
+                prompt = input()
                 if prompt != "y":
                     print()
                     print("Client list")
@@ -144,31 +143,7 @@ class Server:
                 self.connection.send_data(fin_ack_segment, client_addr)
                 self._verbose(address=client_addr, message=f"Client connection terminated")
             else:
-                self._verbose(message=f"Client {client_addr} bukan ack dari client yang bersangkutan") # ganti verbosenya jika diperlukan
-
-    def _verbose(self, type: str=None, address: tuple[str, int]=None, seq_number: int=None, ack_number: int=None, message: str=None):
-        """
-        types: None (tidak ada pesan spesifik), "handshake", "init", "transfer", "ack", "timeout", "close", "fin"
-        message: Pesan yang ingin disampaikan
-        """
-        if type == "handshake":
-            print(f"[!] [Handshake] Handshake to {address[0]}:{address[1]}")
-        elif type == "init":
-            print(f"[!] [{address[0]}:{address[1]}] Initiating file transfer...")
-        elif type == "transfer":
-            print(f"[!] [{address[0]}:{address[1]}] [Num={seq_number if seq_number is not None else 'NULL'}] Sending segment to client...")
-        elif type == "ack":
-            print(f"[!] [{address[0]}:{address[1]}] [Num={ack_number if ack_number is not None else 'NULL'}] [ACK] {message}")
-        elif type == "timeout":
-            print(f"[!] [ERR] [Timeout] ACK response timeout!")
-        elif type == "close":
-            print(f"[!] [{address[0]}:{address[1]}] [CLS] File transfer completed, initiating closing connection...")
-        elif type == "fin":
-            print(f"[!] [{address[0]}:{address[1]}] [FIN] Sending FIN...")
-        elif type == "error":
-            print(f"[!] [Error] {message}")
-        else:
-            print(f"[!] [{address[0]}:{address[1] if address is not None else ''}] {message}")
+                self._verbose(message=f"Client {client_addr} bukan ack dari client yang bersangkutan")
 
 
     def three_way_handshake(self, client_id: int, client_header:dict, client_addr: tuple[str, int]) -> bool:
@@ -203,9 +178,10 @@ class Server:
 
     def motd(self):
         print(lib.verbose.MOTD)
-        print(f"Starting server at {self.ip}:{self.port}...".center(90))
-        print(f"Opening {self.filename} with size {self.filesize} bytes...".center(90))
-        print(f"Listeng for clients...".center(90))
+        print(f"Starting server at {self.ip}:{self.port}...")
+        print(Verbose(content=f"Starting server at {self.ip}:{self.port}"))
+        print(Verbose(content=f"Source file | {self.file.name} | Size: {self.file_size} bytes | Segments: {self.segment_count}"))
+        print(Verbose(content="Listening for incoming connections..."))
         print()
 
 if __name__ == '__main__':
