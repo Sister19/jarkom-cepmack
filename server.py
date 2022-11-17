@@ -114,7 +114,7 @@ class Server:
             while seq_base < max_seq_base:
                 res_segment, (res_ip, res_port) = self.connection.listen_single_segment()
                 if(res_segment is None):
-                    print(f"[!] [ERR] [TIMEOUT] ACK response timeout")
+                    self._verbose(type="timeout")
                 elif res_segment.get_flag().ack:
                     ack_number = res_segment.get_header()["ack"]
                     if ack_number > seq_base:
@@ -159,11 +159,13 @@ class Server:
         elif type == "ack":
             print(f"[!] [{address[0]}:{address[1]}] [Num={ack_number if ack_number is not None else 'NULL'}] [ACK] {message}")
         elif type == "timeout":
-            print(f"[!] [{address[0]}:{address[1]}] [Num={seq_number if seq_number is not None else 'NULL'}] [Timeout] ACK response timeout, resending segment number {seq_number if seq_number is not None else 'NULL'}")
+            print(f"[!] [ERR] [Timeout] ACK response timeout!")
         elif type == "close":
             print(f"[!] [{address[0]}:{address[1]}] [CLS] File transfer completed, initiating closing connection...")
         elif type == "fin":
             print(f"[!] [{address[0]}:{address[1]}] [FIN] Sending FIN...")
+        elif type == "error":
+            print(f"[!] [Error] {message}")
         else:
             print(f"[!] [{address[0]}:{address[1] if address is not None else ''}] {message}")
 
