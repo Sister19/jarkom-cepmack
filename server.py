@@ -91,6 +91,12 @@ class Server:
             self.file_transfer(i, client_addr)
             i+=1
 
+        print(Verbose(title="File Transfer", content=f"File transfer finished."))
+        print()
+        print(Verbose(subtitle={"CLS":""}, content=f"Closing server..."))
+        self.connection.close()
+        sys.exit()
+
 
     def __signal_error(self, sig, frame):
         raise Exception()
