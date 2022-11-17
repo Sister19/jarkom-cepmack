@@ -26,7 +26,7 @@ class Server:
             self.filesize = os.stat(self.path).st_size
             self.filename = os.path.basename(self.path)
         except FileNotFoundError:
-            print("File not found")
+            print("[!] [ERR] File not found")
             sys.exit(1)
         
         self.payload_size = lib.config.SEGMENT_SIZE - 12
@@ -163,8 +163,6 @@ class Server:
         else:
             print(f"[!] [{address[0]}:{address[1] if address is not None else ''}] {message}")
 
-    def _three_way_error(self):
-        raise Exception()
 
     def three_way_handshake(self, client_id: int, client_header:dict, client_addr: tuple[str, int]) -> bool:
         # Three way handshake, server-side, 1 client
