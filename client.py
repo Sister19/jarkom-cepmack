@@ -35,7 +35,7 @@ class Client:
         self.server_ip = BROADCAST_ADDRESS
         self.motd()
 
-    def _three_way_error(self, sig, frame):
+    def __signal_error(self, sig, frame):
         raise Exception()
 
     def three_way_handshake(self):
@@ -119,10 +119,27 @@ class Client:
             segment_recv, addr_recv = self.connection.listen_single_segment()
             if(segment_recv and segment_recv.get_flag().fin):
                 segment_ack = Segment()
-                segment_ack.set_flag([lib.segment.FIN_FLAG, lib.segment.ACK_FLAG])
-                print(Verbose(title="File Transfer", subtitle={"FIN":""}, content=f"Received fin from server, sending fin+ack."))
+                segment_ack.set_flag([lib.segment.ACK_FLAG])
                 self.connection.send_data(segment_ack, addr_recv)
-                active = False
+                print(Verbose(title="File Transfer", subtitle={"FIN":""}, content=f"Received fin from server, sending ack."))
+                # CLOSING PROCESS
+                # TODO verbose nutup toko
+                segment_fin = Segment()
+                segment_fin.set_flag([lib.segment.FIN_FLAG])
+                self.connection.send_data(segment_fin, addr_recv)
+                # TODO verbose nutup toko
+                signal.signal(signal.SIGALRM, self.__signal_error)
+                try:
+                    signal.alarm(5)
+                    while True:
+                        segment_ack, addr = self.connection.listen_single_segment()
+                        if segment_ack and addr == (self.server_ip, self.broadcast_port) and segment_ack.get_flag().ack:
+                            signal.alarm(0)
+                            self.connection.close_socket()
+                            active = False
+                except:
+                    self.connection.close_socket()
+                    active = False
                 # TODO: handle receive ack
             elif addr_recv or (self.server_ip, self.broadcast_port) == addr_recv:
                 if(segment_recv and segment_recv.get_header()['sequence'] == Rn and segment_recv.valid_checksum()):
