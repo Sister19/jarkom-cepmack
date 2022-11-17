@@ -150,10 +150,10 @@ class Client:
                     # buang segmen
                     if(segment_recv):
                         # print('buang segmen') 
-                        print(Verbose(title="File Transfer", subtitle={"NUM":Rn}, content=f"Received out of order segment {Rn}, sending ack..."))
+                        print(Verbose(title="File Transfer", subtitle={"NUM":Rn, "ERR":""}, content=f"Received out of order segment {segment_recv.get_header()['sequence']}, sending ack..."))
                     else:
                         # print('ga dpt segmen')
-                        print(Verbose(title="File Transfer", subtitle={"ERR":"", "TIMEOUT":""}, content=f"Received no segment, sending ack..."))
+                        print(Verbose(title="File Transfer", subtitle={"NUM":Rn, "ERR":"", "TIMEOUT":""}, content=f"Received no segment, sending ack..."))
                 segment_ack = Segment()
                 segment_ack.set_header({'sequence': 0, 'ack': Rn})
                 segment_ack.set_flag([lib.segment.ACK_FLAG])
