@@ -84,13 +84,15 @@ class Server:
             print()
         
         # File transfer
+        i = 1
         for client_addr in self.connected_client:
-
-            self.file_transfer(client_addr)
+            print(Verbose(title="File Transfer", subtitle={"CLIENT":f"{i}"}, content=f"Starting file transfer to client {i} at {client_addr[0]}:{client_addr[1]}"))
+            self.file_transfer(i, client_addr)
+            i+=1
 
                 
 
-    def file_transfer(self, client_addr : tuple[str, int]):
+    def file_transfer(self, client_id:int, client_addr : tuple[str, int]):
         # File transfer, server-side, Send file to 1 client
         window_size = lib.config.WINDOW_SIZE
         seq_lower_base = 0
@@ -148,9 +150,9 @@ class Server:
                 fin_ack_segment = Segment()
                 fin_ack_segment.set_flag([lib.segment.ACK_FLAG, lib.segment.FIN_FLAG])
                 self.connection.send_data(fin_ack_segment, client_addr)
-                self._verbose(address=client_addr, message=f"Client connection terminated")
+                # self._verbose(address=client_addr, message=f"Client connection terminated")
             else:
-                self._verbose(message=f"Client {client_addr} bukan ack dari client yang bersangkutan")
+                # self._verbose(message=f"Client {client_addr} bukan ack dari client yang bersangkutan")
 
 
     def three_way_handshake(self, client_id: int, client_header:dict, client_addr: tuple[str, int]) -> bool:
@@ -192,7 +194,7 @@ class Server:
         print(lib.verbose.MOTD)
         print(f"Starting server at {self.ip}:{self.port}...")
         print(Verbose(content=f"Starting server at {self.ip}:{self.port}"))
-        print(Verbose(content=f"Source file | {self.file.name} | Size: {self.file_size} bytes | Segments: {self.segment_count}"))
+        print(Verbose(content=f"Source file | {self.filename} | Size: {self.filesize} bytes | Segments: {self.segment_count}"))
         print(Verbose(content="Listening for incoming connections..."))
         print()
 
